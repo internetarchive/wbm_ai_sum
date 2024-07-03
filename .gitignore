@@ -2,3 +2,5 @@
 /example
 .env
 /utils/__pycache__
+/services/__pycache__
+/config/__pycache__

@@ -3,7 +3,7 @@ import json
 
 
 def fetch_cdx_data(
-    url,
+    url: str,
     match_type="exact",
     limit=10,
     fields=None,
@@ -11,6 +11,18 @@ def fetch_cdx_data(
     from_timestamp=None,
     to_timestamp=None,
 ) -> str:
+    """
+    Fetches CDX (Capture Index) data from the Wayback Machine for a given URL.
+
+    This function queries the Wayback Machine's CDX server to retrieve historical
+    information about captures of a specified URL. It allows for various query
+    parameters to filter and customize the results.
+
+    :param url: The URL to fetch CDX data for. This should be a full URL including
+                the protocol.
+    :return: A JSON string containing the CDX data if successful, or a dictionary
+             with an 'error' key describing the failure reason.
+    """
     base_url = "http://web.archive.org/cdx/search/cdx"
     params = {"url": url, "output": "json", "limit": limit, "matchType": match_type}
 
