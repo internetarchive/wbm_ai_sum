@@ -55,4 +55,14 @@ schema_fetch_data = {
     },
 }
 
-function_schemas = [schema_cdx_data, schema_fetch_data]
+schema_trend_analysis = {
+    "name": "get_trend_analysis",
+    "description": "Get trend analysis for a URL, including resilience, fixity, and chaos metrics",
+    "parameters": {
+        "type": "object",
+        "properties": {"url": {"type": "string", "description": "The URL to analyze"}},
+        "required": ["url"],
+    },
+}
+
+function_schemas = [schema_cdx_data, schema_fetch_data, schema_trend_analysis]

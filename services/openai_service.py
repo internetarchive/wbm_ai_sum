@@ -12,6 +12,7 @@ class OpenAIService:
             model="gpt-3.5-turbo",
             messages=messages,
             functions=function_schemas,
+            function_call="auto",
         )
         return response.choices[0].message
 

@@ -5,7 +5,9 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from dotenv import load_dotenv
-from services import OpenAIService, WaybackService, SemanticRouterService
+
+# from services import OpenAIService, WaybackService, SemanticRouterService
+from services import OpenAIService, WaybackService
 
 load_dotenv()
 
@@ -23,7 +25,7 @@ if not openai_api_key:
 try:
     openai_service = OpenAIService(openai_api_key)
     wayback_service = WaybackService()
-    semantic_router = SemanticRouterService()
+    # semantic_router = SemanticRouterService()
 except ValueError as e:
     st.error(f"Error initializing services: {str(e)}")
     st.stop()
@@ -42,9 +44,10 @@ if prompt := st.chat_input():
     st.chat_message("user").write(prompt)
 
     # Get intent using semantic router
-    intent = semantic_router.get_intent(prompt)
-
-    if intent is None:
+    # intent = semantic_router.get_intent(prompt)
+    intent = False
+    # if intent is None:
+    if intent:
         # If no specific intent is matched, let GPT handle it without functions
         response = openai_service.get_completion(st.session_state.messages)
         print(response)
@@ -64,6 +67,8 @@ if prompt := st.chat_input():
                 result = wayback_service.fetch_cdx_data(args["url"])
             elif function_name == "fetch_and_extract_text":
                 result = wayback_service.fetch_and_extract_text(args["url"])
+            elif function_name == "get_trend_analysis":
+                result = wayback_service.get_trend_analysis(args["url"])
 
             st.session_state.messages.append(
                 {
