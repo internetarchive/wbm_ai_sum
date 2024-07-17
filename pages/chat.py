@@ -11,7 +11,20 @@ from services import OpenAIService, WaybackService
 
 load_dotenv()
 
-st.title("Wayback Machine Copilot")
+# Set page config
+st.set_page_config(
+    page_title="Oculus Temporis",
+    page_icon="assets/octemp.png",
+    layout="centered",
+    initial_sidebar_state="collapsed",
+    menu_items={
+        "Get Help": "https://github.com/internetarchive/wbm_ai_sum",
+        "Report a bug": "https://github.com/internetarchive/wbm_ai_sum/issues/new",
+        # "About": "# This is a header. This is an *extremely* cool app!",
+    },
+)
+
+st.title("Oculus Temporis")
 
 # Check if OpenAI API key is set
 openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -50,7 +63,7 @@ if prompt := st.chat_input():
     if intent:
         # If no specific intent is matched, let GPT handle it without functions
         response = openai_service.get_completion(st.session_state.messages)
-        print(response)
+        # print(response)
         st.session_state.messages.append(
             {"role": "assistant", "content": response.content}
         )

@@ -1,0 +1,14 @@
+[client]
+showErrorDetails = false
+
+[theme]
+primaryColor = "black"
+secsecondaryBackgroundColor = "black"
+backgroundColor = "#F5F5F5"
+
+textColor = "black"
+
+
+# Font family for all text in the app, except code blocks. One of "sans serif",
+# "serif", or "monospace".
+font = "serif"
