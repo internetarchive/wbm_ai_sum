@@ -57,7 +57,7 @@ schema_fetch_data = {
 
 schema_trend_analysis = {
     "name": "get_trend_analysis",
-    "description": "Get trend analysis for a URL, including resilience, fixity, and chaos metrics",
+    "description": "Get trend analysis for a URL, including resilience, fixity, and chaos metrics. The metric are for the understanding of LLM only. Try to simplify the explanation.",
     "parameters": {
         "type": "object",
         "properties": {"url": {"type": "string", "description": "The URL to analyze"}},

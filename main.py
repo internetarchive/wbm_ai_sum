@@ -1,16 +1,12 @@
-import random
 import streamlit as st
 import os
 import sys
-
+from typing import Any, Dict, Generator
+from dotenv import load_dotenv
 from config import suggestions
+from services import OpenAIService, WaybackService, SemanticRouterService
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-from dotenv import load_dotenv
-
-# from services import OpenAIService, WaybackService, SemanticRouterService
-from services import OpenAIService, WaybackService
 
 load_dotenv()
 
@@ -19,18 +15,12 @@ st.set_page_config(
     page_title="Athena",
     page_icon="assets/favicon.ico",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
     menu_items={
         "Get Help": "https://github.com/internetarchive/wbm_ai_sum",
         "Report a bug": "https://github.com/internetarchive/wbm_ai_sum/issues/new",
-        # "About": "# This is a header. This is an *extremely* cool app!",
     },
 )
-st.logo("assets/favicon.ico")
-
-
-# st.image("assets/owl_white.png", width=100)
-st.title("Archive Temporal History Exploration and Navigation Assistant")
 
 # Check if OpenAI API key is set
 openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -44,74 +34,59 @@ if not openai_api_key:
 try:
     openai_service = OpenAIService(openai_api_key)
     wayback_service = WaybackService()
-    # semantic_router = SemanticRouterService()
+    semantic_router = SemanticRouterService()
 except ValueError as e:
     st.error(f"Error initializing services: {str(e)}")
     st.stop()
 
-# Initialize messages
-if "messages" not in st.session_state:
-    st.session_state["messages"] = [
-        {"role": "assistant", "content": "How can I help you?"}
-    ]
 
-for msg in st.session_state.messages:
-    if msg["role"] in ["user", "assistant"]:
-        avatar_path = "assets/favicon.ico" if msg["role"] == "assistant" else None
-        st.chat_message(msg["role"], avatar=avatar_path).write(msg["content"])
+# # Function to create a generator for streaming text
+# def stream_text(text: str) -> Generator[str, None, None]:
+#     for char in text:
+#         yield char
 
-# Initialize suggestion visibility state
-if "show_suggestion" not in st.session_state:
-    st.session_state.show_suggestion = True
 
-# Initialize prompt in session state if not present
-if "prompt" not in st.session_state:
-    st.session_state.prompt = None
+def process_user_input(user_input: str):
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    st.chat_message("user").write(user_input)
 
-# Display a random suggestion as a button if the flag is True
-if st.session_state.show_suggestion:
-    random_suggestion = random.choice(suggestions)
-    if st.button(random_suggestion):
-        st.session_state.prompt = random_suggestion
-        st.session_state.show_suggestion = False  # Hide the suggestion button
-    prompt = None
-
-# Use the prompt from session state if available
-prompt = st.session_state.get("prompt", st.chat_input())
-
-if prompt:
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    st.chat_message("user").write(prompt)
-
-    # Get intent using semantic router
-    # intent = semantic_router.get_intent(prompt)
-    intent = False
-    # if intent is None:
+    # Use Semantic Router to determine intent
+    intent = semantic_router.get_intent(user_input)
+    print("Intent is called: ", intent)
+    # Prepare the messages for OpenAI, including the detected intent
+    messages_for_openai = st.session_state.messages.copy()
     if intent:
-        # If no specific intent is matched, let GPT handle it without functions
-        response = openai_service.get_completion(st.session_state.messages)
-        print(response)
-        st.session_state.messages.append(
-            {"role": "assistant", "content": response.content}
+        messages_for_openai.append(
+            {
+                "role": "system",
+                "content": f"The detected intent for the user's last message is: {intent}. "
+                f"Consider using the {intent} function if appropriate.",
+            }
         )
-        st.chat_message("assistant").write(response.content)
-        st.session_state.show_suggestion = True  # Show the suggestion button again
-    else:
-        st.session_state.show_suggestion = False  # Hide the suggestion button
-        # Get OpenAI response with function call
-        response = openai_service.get_completion(st.session_state.messages)
 
-        if response.function_call:
+    # Get OpenAI response, which may include a function call
+    try:
+        response = openai_service.get_completion(messages_for_openai)
+        if response is None:
+            st.error("Received an invalid response from OpenAI service.")
+            return
+
+        if response and response.function_call:
+            # OpenAI has decided to call a function
             function_name = response.function_call.name
-            args = openai_service.get_function_args(response.function_call)
+            function_args = openai_service.get_function_args(response.function_call)
+            print("Function name is called: ", function_name)
+            print("Function args is called: ", function_args)
+            # Ensure args is correctly structured
+            if "url" in function_args:
+                function_args["url"] = str(
+                    function_args["url"]
+                )  # Convert URL to string if necessary
 
-            if function_name == "fetch_cdx_data":
-                result = wayback_service.fetch_cdx_data(args["url"])
-            elif function_name == "fetch_and_extract_text":
-                result = wayback_service.fetch_and_extract_text(args["url"])
-            elif function_name == "get_trend_analysis":
-                result = wayback_service.get_trend_analysis(args["url"])
+            # Execute the function
+            result = execute_function(function_name, function_args)
 
+            # Add the function result to the messages
             st.session_state.messages.append(
                 {
                     "role": "function",
@@ -120,17 +95,73 @@ if prompt:
                 }
             )
 
-            # Get final response from OpenAI
+            # Get a new response from OpenAI with the function result
             final_response = openai_service.get_completion(st.session_state.messages)
-            st.session_state.messages.append(
-                {"role": "assistant", "content": final_response.content}
-            )
-            st.chat_message("assistant").write(final_response.content)
+            response_content = final_response.content
         else:
-            st.session_state.messages.append(
-                {"role": "assistant", "content": response.content}
+            # No function call, use the initial response
+            response_content = (
+                response.content if response else "No response generated."
             )
-            st.chat_message("assistant").write(response.content)
 
-        # Show the suggestion button again after the assistant's response
-        st.session_state.show_suggestion = True
+    except Exception as e:
+        st.error(f"Error processing request: {str(e)}")
+        return
+
+    st.session_state.messages.append({"role": "assistant", "content": response_content})
+    with st.chat_message("assistant", avatar="assets/favicon.ico"):
+        st.write_stream(stream_text(response_content))
+
+
+def execute_function(function_name: str, args: Dict[str, Any]) -> str:
+    if function_name == "fetch_cdx_data":
+        return wayback_service.fetch_cdx_data(args.get("url"))
+    elif function_name == "fetch_and_extract_text":
+        return wayback_service.fetch_and_extract_text(args.get("url"))
+    elif function_name == "get_trend_analysis":
+        return wayback_service.get_trend_analysis(args.get("url"))
+    else:
+        raise ValueError(f"Unknown function: {function_name}")
+
+
+def stream_text(text: str):
+    if text is None:
+        yield "No response generated."
+    else:
+        for char in text:
+            yield char
+
+
+# Sidebar with suggestions
+with st.sidebar:
+    st.header("Suggestions")
+    with st.expander("Click to view suggestions", expanded=False):
+        for suggestion in suggestions:
+            if st.button(suggestion, key=suggestion):
+                process_user_input(suggestion)
+
+# Main content
+# st.image("assets/favicon.ico", width=50)
+st.title("Archive Temporal History Exploration and Navigation Assistant")
+
+# Initialize messages
+if "messages" not in st.session_state:
+    st.session_state["messages"] = [
+        {"role": "assistant", "content": "How can I help you?"}
+    ]
+
+# Display chat history
+for msg in st.session_state.messages:
+    if msg["role"] in ["user", "assistant"]:
+        avatar_path = "assets/favicon.ico" if msg["role"] == "assistant" else None
+        with st.chat_message(msg["role"], avatar=avatar_path):
+            if msg["role"] == "assistant":
+                st.write_stream(stream_text(msg["content"]))
+            else:
+                st.write(msg["content"])
+
+# Chat input
+user_input = st.chat_input("Type your message here...")
+
+if user_input:
+    process_user_input(user_input)

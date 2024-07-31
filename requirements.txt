@@ -2,3 +2,4 @@ streamlit
 openai
 semantic-router
 python-dotenv
+mediacloud-metadata
