@@ -2,5 +2,6 @@
 suggestions = [
     "Show me the latest trends of cnn.com.",
     "Fetch data from the Wayback Machine.",
-    "Get the latest news about climate change from weather.com.",
+    "How healthy is example.org",
+    "Tell me what was posted on cnn.com on 4th of July 2010.",
 ]
