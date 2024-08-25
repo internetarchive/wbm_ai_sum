@@ -1,5 +1,12 @@
-streamlit
-openai
-semantic-router
-python-dotenv
-mediacloud-metadata
+altair==5.4.0
+beautifulsoup4==4.12.3
+matplotlib==3.9.2
+numpy==2.1.0
+openai==1.42.0
+pandas==2.2.2
+python-dotenv==1.0.1
+Requests==2.32.3
+semantic_router==0.0.61
+streamlit==1.37.0
+requests
+mcmetadata
