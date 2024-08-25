@@ -1,15 +1,41 @@
-import pandas as pd
+from typing import Dict
+from venv import logger
+from matplotlib import pyplot as plt
+import requests
+
+import altair as alt
 import numpy as np
-from math import exp
+import pandas as pd
 import streamlit as st
-from dataclasses import dataclass, field
+import streamlit.components.v1 as components
+
 from copy import deepcopy
-from utils.loadcdx import load_cdx, DailyRecord
+from dataclasses import dataclass, field, asdict
+from math import exp
+from urllib.parse import quote_plus
+from utils.loadcdx import load_cdx, DailyRecord, PeriodicSamples
 
+MAXCDXPAGES = 2000
 WBM = "https://web.archive.org/web"
+CRLF = "\n"
+CDXAPI = "https://web.archive.org/cdx/search/cdx"
 
 
-@st.cache_data(max_entries=65536, show_spinner=False)
+def ymd(d):
+    y, d = divmod(d, 365)
+    m, d = divmod(d, 30)
+    if y or m > 6:
+        if d > 15:
+            m += 1
+        d = 0
+    if m == 12:
+        y += 1
+        m = 0
+    t = {"y": y, "m": m, "d": d}
+    return "".join([s for k, v in t.items() if v for s in (str(v), k)])
+
+
+@st.cache(max_entries=65536, show_spinner=False)
 def _sigmoid_inverse(x, shift, slope):
     return 1 + exp(shift - x / slope)
 
@@ -69,6 +95,99 @@ def filler(drs, fill, policy):
     return f
 
 
+@st.cache(ttl=3600)
+def get_resp_headers(url):
+    res = requests.head(url, allow_redirects=True)
+    rh = res.history + [res]
+    return [
+        f"HTTP/1.1 {r.status_code} {r.reason}{CRLF}{CRLF.join(': '.join(i) for i in r.headers.items())}{CRLF}"
+        for r in rh
+    ]
+
+
+def load_cdx_pages(url):
+    ses = requests.Session()
+    prog = st.progress(0)
+    page = 0
+    while page < MAXCDXPAGES:
+        pageurl = f"{url}&page={page}"
+        r = ses.get(pageurl, stream=True)
+        if not r.ok:
+            prog.empty()
+            raise ValueError(
+                f"CDX API returned `{r.status_code}` status code for `{url}`"
+            )
+        r.raw.decode_content = True
+        for line in r.raw:
+            yield line
+        page += 1
+        maxp = int(r.headers.get("x-cdx-num-pages", 1))
+        prog.progress(min(page / maxp, 1.0))
+        if page >= maxp:
+            prog.empty()
+            break
+
+
+@st.cache(ttl=3600, persist=True, show_spinner=False, suppress_st_warning=True)
+def load_cdx(url):
+    digest_status = {}
+    date_record = {}
+    psc = PeriodicSamples()
+    STPR = {"2xx": 4, "4xx": 3, "5xx": 2, "3xx": 1}
+    SWS = 1000
+    sw = ["~"] * SWS
+    cp = -1
+    dr = None
+    pt = ""
+    pc = "~"
+    ps = "~"
+    rs = us = uw = 0
+    for l in load_cdx_pages(
+        f"{CDXAPI}?fl=timestamp,statuscode,digest&url={quote_plus(url)}"
+    ):
+        ts, s, d = l.decode().split()
+        psc(ts)
+        t = f"{ts[:4]}-{ts[4:6]}-{ts[6:8]}"
+        s = f"{s[:1]}xx" if "200" <= s <= "599" else s
+        if s == "-":
+            s = digest_status.get(d, "~")
+        else:
+            digest_status[d] = s
+        d = d[:8]
+        if t != pt:
+            if pt:
+                pc = dr.digest
+                dr.chaos = us / rs
+                dr.chaosn = uw / min(SWS, rs)
+                date_record[pt] = dr
+            dr = DailyRecord(t)
+            cp = -1
+            pt = t
+        dr.incr(s)
+        pr = STPR.get(s, 0)
+        if pr > cp:
+            dr.specimen = s
+            dr.datetime = ts
+            dr.digest = d
+            dr.content = "Unchanged" if d == pc else "Changed"
+            cp = pr
+        wp = rs % SWS
+        rs += 1
+        if s != ps:
+            ps = s
+            us += 1
+            uw += 1
+        if sw[wp] != sw[wp - SWS + 1]:
+            uw -= 1
+        sw[wp] = s
+    if pt:
+        dr.chaos = us / rs
+        dr.chaosn = uw / min(SWS, rs)
+        date_record[pt] = dr
+    return (date_record, psc.sample)
+
+
+@st.cache(ttl=3600)
 def load_data(url, fill, policy, sigparams):
     date_record, psc = deepcopy(load_cdx(url))
     if not date_record:
@@ -149,10 +268,8 @@ def load_data(url, fill, policy, sigparams):
     return (resdf, trsdf, pscdf)
 
 
-def analyze_trends(url):
-    # Default values for fill, policy, and sigparams
-    fill = 0
-    policy = "identical"
+def analyze_trends(url: str) -> Dict[str, float]:
+    fill, policy = 0, "identical"
     sigparams = {
         "2xx": (4, 1.0, 1.0),
         "3xx": (5, 10.0, -0.5),
@@ -164,33 +281,59 @@ def analyze_trends(url):
         "Unknown": (10, 30.0, -0.5),
     }
 
-    d, t, p = load_data(url, fill, policy, sigparams)
+    d, _, _ = load_data(url, fill, policy, sigparams)
 
-    # Calculate trend metrics
-    resilience_trend = (
-        d["Resilience"].iloc[-1] - d["Resilience"].iloc[-2] if len(d) > 1 else 0
-    )
-    fixity_trend = d["Fixity"].iloc[-1] - d["Fixity"].iloc[-2] if len(d) > 1 else 0
-    chaos_trend = d["Chaos"].iloc[-1] - d["Chaos"].iloc[-2] if len(d) > 1 else 0
+    # Chart for Resilience
+    st.sidebar.subheader("Resilience Over Time")
+    st.sidebar.line_chart(d.set_index("Day")["Resilience"])
 
-    # Prepare summary
-    summary = {
+    # Chart for Fixity
+    st.sidebar.subheader("Fixity Over Time")
+    st.sidebar.line_chart(d.set_index("Day")["Fixity"])
+
+    # Chart for Chaos
+    st.sidebar.subheader("Chaos Over Time")
+    chaos_df = d.set_index("Day")[["Chaos", "Chaosn"]]
+    chaos_df.columns = ["All", "Last 1000"]
+    st.sidebar.line_chart(chaos_df)
+
+    # st.sidebar.header("Trend Graphs")
+    # plot_metrics(d, "Chaos", "Chaos Trend Over Time")
+    # plot_metrics(d, "Fixity", "Fixity Trend Over Time")
+
+    return {
         "captures": int(d["All"].sum()),
         "span": len(d),
         "gaps": int((d["All"] == 0).sum()),
         "resilience": float(d["Resilience"].iloc[-1]),
-        "resilience_trend": float(resilience_trend),
+        "resilience_trend": (
+            float(d["Resilience"].iloc[-1] - d["Resilience"].iloc[-2])
+            if len(d) > 1
+            else 0
+        ),
         "fixity": float(d["Fixity"].iloc[-1]),
-        "fixity_trend": float(fixity_trend),
+        "fixity_trend": (
+            float(d["Fixity"].iloc[-1] - d["Fixity"].iloc[-2]) if len(d) > 1 else 0
+        ),
         "chaos": float(d["Chaos"].iloc[-1]),
-        "chaos_trend": float(chaos_trend),
+        "chaos_trend": (
+            float(d["Chaos"].iloc[-1] - d["Chaos"].iloc[-2]) if len(d) > 1 else 0
+        ),
         "status_distribution": d[["2xx", "3xx", "4xx", "5xx"]].sum().to_dict(),
     }
 
-    return summary
+
+def plot_metrics(data: pd.DataFrame, metric: str, title: str):
+    plt.figure(figsize=(10, 4))
+    plt.plot(data["Datetime"], data[metric], marker="o")
+    plt.title(title)
+    plt.xlabel("Date")
+    plt.ylabel(metric.capitalize())
+    plt.grid(True)
+    st.pyplot(plt)
 
 
-def interpret_trend(metric, value, trend):
+def interpret_trend(metric: str, value: float, trend: float) -> str:
     interpretations = {
         "resilience": {
             "high": "The webpage is highly resilient, indicating good archival preservation.",
@@ -209,22 +352,22 @@ def interpret_trend(metric, value, trend):
         },
     }
 
-    if value > 0.7:
-        level = "high"
-    elif value > 0.3:
-        level = "medium"
-    else:
-        level = "low"
-
+    level = "high" if value > 0.7 else "medium" if value > 0.3 else "low"
     trend_desc = "increasing" if trend > 0 else "decreasing" if trend < 0 else "stable"
 
     return f"{interpretations[metric][level]} The trend is {trend_desc}."
 
 
-def get_trend_analysis(url):
+def get_trend_analysis(url: str) -> str:
+    logger.info(f"Analyzing trends for {url}")
     summary = analyze_trends(url)
 
-    analysis = f"""
+    # # Plotting the Chaos and Fixity graphs in the sidebar
+    # st.sidebar.header("Trend Graphs")
+    # plot_metrics(d, "Chaos", "Chaos Trend Over Time")
+    # plot_metrics(d, "Fixity", "Fixity Trend Over Time")
+
+    return f"""
     Trend Analysis for {url}:
 
     1. Captures: {summary['captures']} total captures over {summary['span']} days, with {summary['gaps']} gaps.
@@ -243,6 +386,6 @@ def get_trend_analysis(url):
     - 3xx: {summary['status_distribution']['3xx']}
     - 4xx: {summary['status_distribution']['4xx']}
     - 5xx: {summary['status_distribution']['5xx']}
+    
+    These metrics are for the understanding of LLM only. Try to simplify the explanation for the end-user. You'll have to explain in layman terms what these metrics me an for the website's health and stability. Don't include the technical terms like fixity, chaos in the trend analysis result as user might not know of these.
     """
-
-    return analysis

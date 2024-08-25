@@ -9,7 +9,7 @@ router_schemas = (
                 "properties": {
                     "url": {
                         "type": "string",
-                        "description": "The URL to fetch CDX data for. This should be a full URL including\n            the protocol.",
+                        "description": "The URL to fetch CDX data for. This should be a full URL including\n the protocol.",
                     },
                     "match_type": {
                         "type": "object",
@@ -69,6 +69,27 @@ router_schemas = (
                 "type": "object",
                 "properties": {
                     "url": {"type": "string", "description": "The URL to analyze"}
+                },
+                "required": ["url"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_data_wayback",
+            "description": "Fetches a webpage snapshot from the Wayback Machine and extracts its main textual content.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The URL of the webpage to fetch and extract text from.",
+                    },
+                    "timestamp": {
+                        "type": "string",
+                        "description": "The timestamp of the snapshot in the format 'YYYYMMDDhhmmss'.\nIf None, the latest snapshot will be used.",
+                    },
                 },
                 "required": ["url"],
             },

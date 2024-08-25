@@ -21,6 +21,7 @@ class OpenAIService:
             messages=full_messages,
             functions=function_schemas,
             function_call="auto",
+            temperature=0.7,
         )
         return response.choices[0].message
 

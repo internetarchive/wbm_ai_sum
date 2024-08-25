@@ -1,10 +1,11 @@
 import requests
 import json
+from datetime import datetime, timezone
 
 
 def fetch_cdx_data(
     url: str,
-    match_type="exact",
+    match_type="domain",
     limit=10,
     fields=None,
     filters=None,
@@ -24,7 +25,7 @@ def fetch_cdx_data(
              with an 'error' key describing the failure reason.
     """
     base_url = "http://web.archive.org/cdx/search/cdx"
-    params = {"url": url, "output": "json", "limit": limit, "matchType": match_type}
+    params = {"url": url, "output": "json", "limit": -limit, "matchType": match_type}
 
     if fields:
         params["fl"] = ",".join(fields)
@@ -35,14 +36,27 @@ def fetch_cdx_data(
     if to_timestamp:
         params["to"] = to_timestamp
 
+    # # Set from_timestamp to today's date if not provided
+    # if not from_timestamp:
+    #     today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    #     params["from"] = today
+
     try:
         response = requests.get(base_url, params=params)
         response.raise_for_status()
         if response.status_code == 200:
             cdx_data = response.json()
-            cdx_data = json.dumps(cdx_data)
             if cdx_data:
-                return cdx_data
+                # Filter out captures with status code other than 200
+                filtered_cdx_data = [
+                    capture for capture in cdx_data if capture[4] == "200"
+                ]
+                if filtered_cdx_data:
+                    return json.dumps(filtered_cdx_data)
+                else:
+                    return {
+                        "error": "No CDX data found with status code 200 for this URL."
+                    }
             else:
                 return {"error": "No CDX data found for this URL."}
         else:
@@ -52,3 +66,7 @@ def fetch_cdx_data(
 
     except requests.exceptions.RequestException as e:
         return {"error": str(e)}
+
+
+if __name__ == "__main__":
+    print(fetch_cdx_data("cartoonnetwork.jp", limit=100))
