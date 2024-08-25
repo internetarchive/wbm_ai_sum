@@ -9,4 +9,4 @@ Requests==2.32.3
 semantic_router==0.0.61
 streamlit==1.37.0
 requests
-mcmetadata
+mediacloud-metadata
