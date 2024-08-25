@@ -119,8 +119,7 @@ Contributions are welcome! Please fork the repository and create a pull request 
 If you encounter any issues or have suggestions for new features, please report them on the [issue tracker](https://github.com/internetarchive/wbm_ai_sum/issues).
 
 ## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+See the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
