@@ -1,6 +1,7 @@
 from typing import Dict
 from venv import logger
-from matplotlib import pyplot as plt
+
+# from matplotlib import pyplot as plt
 import requests
 
 import altair as alt
@@ -323,14 +324,14 @@ def analyze_trends(url: str) -> Dict[str, float]:
     }
 
 
-def plot_metrics(data: pd.DataFrame, metric: str, title: str):
-    plt.figure(figsize=(10, 4))
-    plt.plot(data["Datetime"], data[metric], marker="o")
-    plt.title(title)
-    plt.xlabel("Date")
-    plt.ylabel(metric.capitalize())
-    plt.grid(True)
-    st.pyplot(plt)
+# def plot_metrics(data: pd.DataFrame, metric: str, title: str):
+#     plt.figure(figsize=(10, 4))
+#     plt.plot(data["Datetime"], data[metric], marker="o")
+#     plt.title(title)
+#     plt.xlabel("Date")
+#     plt.ylabel(metric.capitalize())
+#     plt.grid(True)
+#     st.pyplot(plt)
 
 
 def interpret_trend(metric: str, value: float, trend: float) -> str:
