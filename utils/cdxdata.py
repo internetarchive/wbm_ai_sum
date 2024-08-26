@@ -25,8 +25,17 @@ def fetch_cdx_data(
              with an 'error' key describing the failure reason.
     """
     base_url = "http://web.archive.org/cdx/search/cdx"
-    params = {"url": url, "output": "json", "limit": -limit, "matchType": match_type}
-
+    print("d1")
+    if limit is not None:
+        params = {
+            "url": url,
+            "output": "json",
+            "limit": -limit,
+            "matchType": match_type,
+        }
+    else:
+        params = {"url": url, "output": "json", "limit": 10, "matchType": match_type}
+    print("d2")
     if fields:
         params["fl"] = ",".join(fields)
     if filters:
@@ -35,14 +44,14 @@ def fetch_cdx_data(
         params["from"] = from_timestamp
     if to_timestamp:
         params["to"] = to_timestamp
-
+    print("d3")
     # # Set from_timestamp to today's date if not provided
     # if not from_timestamp:
     #     today = datetime.now(timezone.utc).strftime("%Y%m%d")
     #     params["from"] = today
-
     try:
         response = requests.get(base_url, params=params)
+        print(response.json())
         response.raise_for_status()
         if response.status_code == 200:
             cdx_data = response.json()

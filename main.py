@@ -98,8 +98,8 @@ def process_user_input(user_input: str):
             st.session_state.messages.append(
                 {
                     "role": "function",
-                    "name": function_name,
-                    "content": result,
+                    "name": str(function_name),
+                    "content": str(result),
                 }
             )
 
@@ -124,7 +124,8 @@ def process_user_input(user_input: str):
 def execute_function(function_name: str, args: Dict[str, Any]) -> str:
     if function_name == "fetch_cdx_data":
         logger.info(f"Fetching CDX data for URL: {args.get('url')}")
-        return wayback_service.fetch_cdx_data(args.get("url"))
+        logger.info(f"Limit: {args.get('limit')}, URL: {args.get('url')}")
+        return wayback_service.fetch_cdx_data(args.get("url"), args.get("limit"))
     elif function_name == "fetch_data_wayback":
         logger.info(
             f"Fetching data for URL: {args.get('url')} with timestamp: {args.get('timestamp')}"
