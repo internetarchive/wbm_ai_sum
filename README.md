@@ -1,7 +1,6 @@
-# Athena: Archive Temporal History Exploration and Navigation Assistant
-
 ![Athena Logo](assets/favicon.ico)
-
+# Athena: Archive Temporal History Exploration and Navigation Assistant
+![GSOC'24 WBM](assets/cover.png)
 Athena is a Streamlit-based application designed to assist users in exploring and analyzing historical web archive data. The app utilizes advanced AI models to analyze trends, generate insights, and provide users with actionable suggestions. With a focus on temporal history and web page health, Athena offers a robust platform for understanding the evolution and resilience of web content over time.
 
 ## Features
